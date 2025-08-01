@@ -67,9 +67,9 @@ export class VaultClient {
     throw new Error('Vault service is not available after maximum retries');
   }
 
-  private async makeRequest(endpoint: string, options: RequestInit = {}): Promise<any> {
+  private async makeRequest(endpoint: string, options: any = {}): Promise<any> {
     const url = `${this.baseUrl}${endpoint}`;
-    const headers: HeadersInit = {
+    const headers: { [key: string]: string } = {
       'Content-Type': 'application/json',
       ...options.headers
     };

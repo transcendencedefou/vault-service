@@ -9,8 +9,26 @@ export class VaultManager {
     this.vault = vault({
       apiVersion: 'v1',
       endpoint: process.env.VAULT_ADDR || 'http://vault:8200',
-      token: process.env.VAULT_TOKEN || 'vault-root-token'
+      token: process.env.VAULT_TOKEN || this.getSecureRootToken()
     });
+  }
+
+  /**
+   * Récupère ou génère un token root sécurisé
+   * En production, ceci devrait être fourni via des variables d'environnement sécurisées
+   */
+  private getSecureRootToken(): string {
+    // En développement, utilise un token fixe
+    if (process.env.NODE_ENV === 'development') {
+      return 'vault-root-token';
+    }
+
+    // En production, le token DOIT être fourni via VAULT_TOKEN
+    if (!process.env.VAULT_TOKEN) {
+      throw new Error('VAULT_TOKEN must be provided in production environment');
+    }
+
+    return process.env.VAULT_TOKEN;
   }
 
   async initialize() {
@@ -104,7 +122,7 @@ export class VaultManager {
         await this.vault.addPolicy({ name, rules: policy });
         console.log(`📋 Policy '${name}' created`);
       } catch (error) {
-        console.log(`📋 Policy '${name}' already exists or error:`, error.message);
+        console.log(`📋 Policy '${name}' already exists or error:`, (error as Error).message);
       }
     }
   }
@@ -116,8 +134,8 @@ export class VaultManager {
           host: 'database-service',
           port: '3306',
           username: 'user',
-          password: 'securePassword123!',
-          root_password: 'rootSecure456!',
+          password: this.generateSecurePassword(24),
+          root_password: this.generateSecurePassword(32),
           main_database: 'transcendence',
           auth_db: 'auth_db',
           user_db: 'user_db',
@@ -132,14 +150,16 @@ export class VaultManager {
           expiration: '24h',
           refresh_expiration: '7d',
           issuer: 'transcendence',
-          audience: 'transcendence-users'
+          audience: 'transcendence-users',
+          created_at: new Date().toISOString()
         }
       },
       'secret/data/transcendence/encryption': {
         data: {
           key: this.generateSecureKey(32),
           algorithm: 'aes-256-gcm',
-          iv_length: '16'
+          iv_length: '16',
+          created_at: new Date().toISOString()
         }
       },
       'secret/data/transcendence/oauth': {
@@ -148,15 +168,18 @@ export class VaultManager {
           google_client_secret: process.env.GOOGLE_CLIENT_SECRET || this.generateSecureKey(32),
           github_client_id: process.env.GITHUB_CLIENT_ID || 'your-github-client-id',
           github_client_secret: process.env.GITHUB_CLIENT_SECRET || this.generateSecureKey(32),
-          callback_url_base: 'https://localhost/auth/callback'
+          callback_url_base: process.env.CALLBACK_URL_BASE || 'https://localhost/auth/callback',
+          created_at: new Date().toISOString()
         }
       },
       'secret/data/transcendence/api': {
         data: {
-          rate_limit_max: '100',
-          rate_limit_window: '60000',
-          cors_origin: process.env.CORS_ORIGIN || '*',
-          session_secret: this.generateSecureKey(32)
+          rate_limit_max: process.env.RATE_LIMIT_MAX || '100',
+          rate_limit_window: process.env.RATE_LIMIT_WINDOW || '60000',
+          cors_origin: process.env.CORS_ORIGIN || 'http://localhost:3000,https://localhost',
+          session_secret: this.generateSecureKey(32),
+          api_version: '1.0.0',
+          created_at: new Date().toISOString()
         }
       },
       'secret/data/transcendence/services': {
@@ -192,7 +215,7 @@ export class VaultManager {
           console.log(`🔒 Secret stored at ${path}`);
         }
       } catch (error) {
-        console.log(`🔒 Error handling secret at ${path}:`, error.message);
+        console.log(`🔒 Error handling secret at ${path}:`, (error as Error).message);
       }
     }
   }
@@ -287,13 +310,30 @@ export class VaultManager {
     } catch (error) {
       return {
         vault_status: 'unhealthy',
-        error: error.message
+        error: (error as Error).message
       };
     }
   }
 
   private generateSecureKey(length: number): string {
     return crypto.randomBytes(length).toString('hex');
+  }
+
+  /**
+   * Génère un mot de passe sécurisé avec caractères spéciaux
+   * @param length Longueur du mot de passe
+   * @returns Mot de passe sécurisé
+   */
+  private generateSecurePassword(length: number): string {
+    const charset = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*';
+    let password = '';
+
+    for (let i = 0; i < length; i++) {
+      const randomIndex = Math.floor(Math.random() * charset.length);
+      password += charset[randomIndex];
+    }
+
+    return password;
   }
 
   isReady(): boolean {
