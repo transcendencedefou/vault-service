@@ -7,13 +7,16 @@ WORKDIR /app
 
 # Install dependencies
 COPY package*.json ./
-RUN npm install --only=production || npm install
+RUN npm install
 
 # Copy source code
 COPY . .
 
 # Build TypeScript
 RUN npm run build
+
+# Remove dev dependencies after build
+RUN npm prune --production
 
 # Create non-root user
 RUN addgroup -g 1001 -S nodejs && adduser -S vault -u 1001
