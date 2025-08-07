@@ -23,18 +23,18 @@ class VaultClient {
    */
   async getSecret(path) {
     let lastError;
-    
+
     for (let attempt = 1; attempt <= this.retryCount; attempt++) {
       try {
         const response = await this.makeRequest(`/api/secrets/${path}`);
         if (!response.success) {
           throw new Error(`Failed to get secret: ${response.error}`);
         }
-        
+
         // Log sécurisé sans exposer le secret
         console.log(`✅ Secret retrieved from path: ${path} (attempt ${attempt})`);
         return response.data;
-        
+
       } catch (error) {
         lastError = error;
         if (attempt < this.retryCount) {
@@ -43,7 +43,7 @@ class VaultClient {
         }
       }
     }
-    
+
     console.error(`❌ Failed to retrieve secret from ${path} after ${this.retryCount} attempts`);
     throw lastError;
   }
@@ -217,12 +217,12 @@ async function loadEnvFromVault(serviceName) {
     try {
       const dbConfig = await vaultClient.getDatabaseConfig();
       const dbUrl = dbConfig.getDatabaseUrl(getServiceDatabase(serviceName));
-      
+
       // Valider l'URL de base de données
       if (!dbUrl || !dbUrl.startsWith('mysql://')) {
         throw new Error('Invalid database URL format');
       }
-      
+
       process.env.DATABASE_URL = dbUrl;
       console.log(`✅ Database configuration loaded for ${getServiceDatabase(serviceName)}`);
     } catch (error) {
@@ -233,7 +233,7 @@ async function loadEnvFromVault(serviceName) {
     // URLs des services avec validation
     try {
       const serviceUrls = await vaultClient.getServiceUrls();
-      
+
       // Validation et assignation sécurisée
       const urlMap = {
         AUTH_SERVICE_URL: serviceUrls.auth_service_url,
@@ -247,7 +247,7 @@ async function loadEnvFromVault(serviceName) {
           process.env[envVar] = url;
         }
       }
-      
+
       console.log('✅ Service URLs loaded from Vault');
     } catch (error) {
       console.warn(`⚠️ Failed to load service URLs from Vault: ${error.message}`);
@@ -257,13 +257,13 @@ async function loadEnvFromVault(serviceName) {
     if (serviceName === 'auth-service') {
       try {
         const jwtSecrets = await vaultClient.getSecret('jwt');
-        
+
         // Validation des secrets JWT
         if (jwtSecrets.secret && jwtSecrets.secret.length >= 32) {
           process.env.JWT_SECRET = jwtSecrets.secret;
           process.env.JWT_ALGORITHM = jwtSecrets.algorithm || 'HS256';
           process.env.JWT_EXPIRATION = jwtSecrets.expiration || '24h';
-          
+
           console.log(`✅ JWT secrets loaded (algorithm: ${jwtSecrets.algorithm})`);
         } else {
           throw new Error('JWT secret too short or missing');
@@ -281,12 +281,12 @@ async function loadEnvFromVault(serviceName) {
     // Configuration API avec validation
     try {
       const apiConfig = await vaultClient.getSecret('api');
-      
+
       // Validation et assignation
       process.env.RATE_LIMIT_MAX = String(parseInt(apiConfig.rate_limit_max) || 100);
       process.env.RATE_LIMIT_WINDOW = String(parseInt(apiConfig.rate_limit_window) || 60000);
       process.env.CORS_ORIGIN = apiConfig.cors_origin || '*';
-      
+
       console.log('✅ API configuration loaded from Vault');
     } catch (error) {
       console.warn(`⚠️ Failed to load API config: ${error.message}`);
@@ -296,7 +296,7 @@ async function loadEnvFromVault(serviceName) {
     if (serviceName === 'game-service') {
       try {
         const gameConfig = await vaultClient.getSecret('game');
-        
+
         // Validation et assignation des configs de jeu
         const gameSettings = {
           WS_HEARTBEAT_INTERVAL: parseInt(gameConfig.ws_heartbeat_interval) || 30000,
@@ -311,6 +311,11 @@ async function loadEnvFromVault(serviceName) {
             process.env[key] = String(value);
           }
         }
+
+        // Variables de sécurité pour HSTS
+        process.env.FORCE_HTTPS = gameConfig.force_https || 'true';
+        process.env.HSTS_MAX_AGE = gameConfig.hsts_max_age || '31536000';
+        process.env.SECURITY_HEADERS = gameConfig.security_headers || 'true';
 
         console.log('✅ Game configuration loaded from Vault');
       } catch (error) {
@@ -331,22 +336,22 @@ async function loadEnvFromVault(serviceName) {
     }
 
     console.log(`✅ Environment variables loaded from Vault for ${serviceName}`);
-    
+
   } catch (error) {
     console.error(`❌ Failed to load environment from Vault for ${serviceName}:`, error.message);
     console.warn('🔧 Using fallback configuration...');
-    
+
     // Fallbacks critiques pour éviter les plantages
     if (!process.env.PORT) {
       const portMap = {
         'auth-service': '3000',
-        'user-service': '3001', 
+        'user-service': '3001',
         'game-service': '3002',
         'gateway-service': '3003'
       };
       process.env.PORT = portMap[serviceName] || '3000';
     }
-    
+
     // Ne pas faire throw ici pour permettre au service de démarrer avec des fallbacks
   }
 }/**

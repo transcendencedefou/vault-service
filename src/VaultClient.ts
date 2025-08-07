@@ -136,6 +136,10 @@ export async function loadEnvFromVault(serviceName: string): Promise<void> {
       process.env.GAME_TICK_RATE = gameConfig.game_tick_rate;
       process.env.MATCH_TIMEOUT = gameConfig.match_timeout;
       process.env.MATCHMAKING_TIMEOUT = gameConfig.matchmaking_timeout;
+      // Variables de sécurité pour HSTS
+      process.env.FORCE_HTTPS = gameConfig.force_https;
+      process.env.HSTS_MAX_AGE = gameConfig.hsts_max_age;
+      process.env.SECURITY_HEADERS = gameConfig.security_headers;
     }
 
     console.log(`✅ Environment variables loaded from Vault for ${serviceName}`);

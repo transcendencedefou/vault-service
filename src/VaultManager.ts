@@ -137,9 +137,8 @@ export class VaultManager {
           password: this.generateSecurePassword(24),
           root_password: this.generateSecurePassword(32),
           main_database: 'transcendence',
-          auth_db: 'auth_db',
-          user_db: 'user_db',
-          game_db: 'game_db',
+          // NOUVELLE CONFIG : Une seule base pour tous les services
+          shared_database: 'transcendence',
           url_template: 'mysql://{username}:{password}@{host}:{port}/{database}'
         }
       },
@@ -166,8 +165,13 @@ export class VaultManager {
         data: {
           google_client_id: process.env.GOOGLE_CLIENT_ID || 'your-google-client-id',
           google_client_secret: process.env.GOOGLE_CLIENT_SECRET || this.generateSecureKey(32),
-          github_client_id: process.env.GITHUB_CLIENT_ID || 'your-github-client-id',
-          github_client_secret: process.env.GITHUB_CLIENT_SECRET || this.generateSecureKey(32),
+          github_client_id: process.env.GITHUB_CLIENT_ID || 'Ov23liYOrKaDhnkpgwvT',
+          github_client_secret: process.env.GITHUB_CLIENT_SECRET || 'e2761b04180f7b5b2f1199e9dc97d699e8074588',
+          github_redirect_uri: process.env.GITHUB_REDIRECT_URI || 'https://localhost/oauth/github/callback',
+          // Variables 42 Intra OAuth
+          intra_client_id: process.env.INTRA_CLIENT_ID || 'u-s4t2ud-2e713f8650a64fa14b4653d833834963aaa8d2191f94adf2ed6090215b3b846b',
+          intra_client_secret: process.env.INTRA_CLIENT_SECRET || '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',
+          intra_redirect_uri: process.env.INTRA_REDIRECT_URI || 'https://localhost/oauth/42/callback',
           callback_url_base: process.env.CALLBACK_URL_BASE || 'https://localhost/auth/callback',
           created_at: new Date().toISOString()
         }
@@ -188,7 +192,13 @@ export class VaultManager {
           user_service_url: 'http://user-service:3001',
           game_service_url: 'http://game-service:3002',
           gateway_service_url: 'http://gateway-service:3003',
-          vault_service_url: 'http://vault-service:8300'
+          vault_service_url: 'http://vault-service:8300',
+          // Configuration des ports pour chaque service
+          auth_service_port: '3000',
+          user_service_port: '3001',
+          game_service_port: '3002',
+          gateway_service_port: '3003',
+          vault_service_port: '8300'
         }
       },
       'secret/data/transcendence/game': {
@@ -198,7 +208,11 @@ export class VaultManager {
           game_tick_rate: '60',
           match_timeout: '600000',
           matchmaking_timeout: '30000',
-          max_players_per_game: '4'
+          max_players_per_game: '4',
+          // Variables de sécurité pour HSTS
+          force_https: 'true',
+          hsts_max_age: '31536000',
+          security_headers: 'true'
         }
       }
     };
@@ -247,13 +261,10 @@ export class VaultManager {
       port: parseInt(dbSecrets.port),
       username: dbSecrets.username,
       password: dbSecrets.password,
-      databases: {
-        auth: dbSecrets.auth_db,
-        user: dbSecrets.user_db,
-        game: dbSecrets.game_db,
-        main: dbSecrets.main_database
-      },
-      getDatabaseUrl: (database: string) => {
+      // NOUVELLE CONFIG : Base unique
+      database: dbSecrets.shared_database || 'transcendence',
+      getDatabaseUrl: () => {
+        const database = dbSecrets.shared_database || 'transcendence';
         return `mysql://${dbSecrets.username}:${dbSecrets.password}@${dbSecrets.host}:${dbSecrets.port}/${database}`;
       }
     };
