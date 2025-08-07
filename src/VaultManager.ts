@@ -178,7 +178,7 @@ export class VaultManager {
       },
       'secret/data/transcendence/api': {
         data: {
-          rate_limit_max: process.env.RATE_LIMIT_MAX || '100',
+          rate_limit_max: process.env.RATE_LIMIT_MAX || '50000', // Limite très élevée pour éviter "too many requests"
           rate_limit_window: process.env.RATE_LIMIT_WINDOW || '60000',
           cors_origin: process.env.CORS_ORIGIN || 'http://localhost:3000,https://localhost',
           session_secret: this.generateSecureKey(32),
@@ -219,14 +219,20 @@ export class VaultManager {
 
     for (const [path, secret] of Object.entries(secrets)) {
       try {
-        // Vérifier si le secret existe déjà
-        try {
-          await this.vault.read(path);
-          console.log(`🔒 Secret already exists at ${path}`);
-        } catch (readError) {
-          // Le secret n'existe pas, on le crée
+        // Pour le secret API, on force TOUJOURS la mise à jour pour s'assurer que les nouvelles limites sont appliquées
+        if (path === 'secret/data/transcendence/api') {
           await this.vault.write(path, secret);
-          console.log(`🔒 Secret stored at ${path}`);
+          console.log(`🔒 Secret forced update at ${path} (API config always updated)`);
+        } else {
+          // Pour les autres secrets, vérifier si ils existent déjà
+          try {
+            await this.vault.read(path);
+            console.log(`🔒 Secret already exists at ${path}`);
+          } catch (readError) {
+            // Le secret n'existe pas, on le crée
+            await this.vault.write(path, secret);
+            console.log(`🔒 Secret stored at ${path}`);
+          }
         }
       } catch (error) {
         console.log(`🔒 Error handling secret at ${path}:`, (error as Error).message);
